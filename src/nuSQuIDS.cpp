@@ -28,6 +28,7 @@
 #include <nuSQuIDS/nuSQuIDS.h>
 #include <cstring>
 #include <map>
+#include <nuSQuIDS/nuSQuIDSLV.h>
 #include <sstream>
 #include <H5Dpublic.h>
 #include <H5Epublic.h>

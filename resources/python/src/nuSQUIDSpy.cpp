@@ -22,6 +22,7 @@
  ******************************************************************************/
 
 #include "nuSQUIDSpy.h"
+#include <nuSQuIDS/nuSQuIDSLV.h>
 
 BOOST_PYTHON_MODULE(nuSQuIDS)
 {
@@ -136,6 +137,15 @@ BOOST_PYTHON_MODULE(nuSQuIDS)
 
   RegisterBasicNuSQuIDSPythonBindings<nuSQUIDS>("nuSQUIDS");
   RegisterBasicAtmNuSQuIDSPythonBindings<nuSQUIDS>("nuSQUIDSAtm");
+
+  auto nusquids_lv = RegisterBasicNuSQuIDSPythonBindings<nuSQUIDSLV>("nuSQUIDSLV");
+  auto nusquids_lv_atm = RegisterBasicAtmNuSQuIDSPythonBindingsHelper<nuSQUIDSLVAtm, nuSQUIDSLV>("nuSQUIDSLVAtm");
+  void (nuSQUIDSLVAtm::*Set_LV_OpMatrix)(double lv_emu_re, double lv_emu_im, double lv_mutau_re, double lv_mutau_im) = &nuSQUIDSLVAtm::Set_LV_OpMatrix;
+  void (nuSQUIDSLVAtm::*Set_LV_Operator)(squids::SU_vector op) = &nuSQUIDSLVAtm::Set_LV_Operator;
+  void (nuSQUIDSLVAtm::*Set_LV_EnergyPower)(int n) = &nuSQUIDSLVAtm::Set_LV_EnergyPower;
+  nusquids_lv_atm.GetClassObject()->def("Set_LV_OpMatrix", Set_LV_OpMatrix);
+  //nusquids_lv_atm.GetClassObject()->def("Set_LV_Operator", Set_LV_Operator);
+  nusquids_lv_atm.GetClassObject()->def("Set_LV_EnergyPower", Set_LV_EnergyPower);
 
   class_<NeutrinoCrossSections, std::shared_ptr<NeutrinoCrossSections>, boost::noncopyable >("NeutrinoCrossSections", no_init);
 
