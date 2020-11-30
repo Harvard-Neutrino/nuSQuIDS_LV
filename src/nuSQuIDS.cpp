@@ -26,6 +26,7 @@
 #define H5Eset_auto_vers 2
 
 #include <nuSQuIDS/nuSQuIDS.h>
+#include <nuSQuIDS/nuSQuIDSLV.h>
 #include <sstream>
 
 namespace nusquids{

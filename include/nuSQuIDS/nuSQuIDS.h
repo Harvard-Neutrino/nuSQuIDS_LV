@@ -1016,7 +1016,7 @@ template<typename BaseType = nuSQUIDS, typename = typename std::enable_if<std::i
 class nuSQUIDSAtm {
   public:
     using BaseSQUIDS = BaseType;
-  private:
+  protected:
     /// \brief Random number generator
     gsl_rng * r_gsl;
     // /// \brief Mixing matrix
