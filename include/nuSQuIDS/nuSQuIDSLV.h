@@ -54,9 +54,9 @@ class nuSQUIDSLV: public nuSQUIDS {
       H5LTset_attribute_double(hdf5_loc_id,"c_values","c_e_tau_real",&(cetaur),1);
       H5LTset_attribute_double(hdf5_loc_id,"c_values","c_e_tau_imag",&(cetaui),1);
       double cee = GSL_REAL(c_params.c_ee);
-      HFLTset_attribute_double(hdf5_loc_id,"c_values","c_e_e",&(cee),1);
+      H5LTset_attribute_double(hdf5_loc_id,"c_values","c_e_e",&(cee),1);
       double cmumu = GSL_REAL(c_params.c_mumu);
-      HFLTset_attribute_double(hdf5_loc_id,"c_values","c_mu_mu",&(cmumu),1);
+      H5LTset_attribute_double(hdf5_loc_id,"c_values","c_mu_mu",&(cmumu),1);
     }
 
     void AddToReadHDF5(hid_t hdf5_loc_id){
@@ -250,10 +250,11 @@ class nuSQUIDSLVAtm: public nuSQUIDSAtm<nuSQUIDSLV> {
 
     nuSQUIDSLVAtm(std::string hdf5_filename):nuSQUIDSAtm(hdf5_filename) {}
 
-    void Set_LV_OpMatrix(double lv_emu_re, double lv_emu_im, double lv_mutau_re, double lv_mutau_im) {
+    void Set_LV_OpMatrix(double lv_emu_re, double lv_emu_im, double lv_mutau_re, double lv_mutau_im, double lv_etau_re, double lv_etau_im, double lv_ee, double lv_mumu) {
       gsl_complex lv_emu {lv_emu_re*units.eV, lv_emu_im*units.eV};
       gsl_complex lv_mutau {lv_mutau_re*units.eV, lv_mutau_im*units.eV};
-      LVParameters lv {lv_emu, lv_mutau};
+      gsl_complex lv_etau {lv_etau_re*units.eV, lv_etau_im*units.eV};
+      LVParameters lv {lv_emu, lv_mutau, lv_etau, lv_ee*units.eV, lv_mumu*units.eV};
       for(BaseSQUIDS& nsq : nusq_array){
         nsq.Set_LV_OpMatrix(lv);
       }
