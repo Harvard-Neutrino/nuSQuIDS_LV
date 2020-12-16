@@ -10,6 +10,9 @@ namespace nusquids {
 struct LVParameters {
   gsl_complex c_emu;
   gsl_complex c_mutau;
+  gsl_complex c_etau;
+  gsl_complex c_ee;
+  gsl_complex c_mumu;
 };
 
 class nuSQUIDSLV: public nuSQUIDS {
@@ -120,10 +123,11 @@ class nuSQUIDSLV: public nuSQUIDS {
     nuSQUIDSLV(std::string hdf5_filename, std::string grp = "/",
              std::shared_ptr<InteractionStructure> int_struct = nullptr): nuSQUIDS(hdf5_filename, grp, int_struct) {}
 
-    void Set_LV_OpMatrix(double lv_emu_re, double lv_emu_im, double lv_mutau_re, double lv_mutau_im) {
+    void Set_LV_OpMatrix(double lv_emu_re, double lv_emu_im, double lv_mutau_re, double lv_mutau_im, double lv_etau_re, double lv_etau_im, double lv_ee, double lv_mumu) {
         gsl_complex lv_emu {lv_emu_re*units.eV, lv_emu_im*units.eV};
         gsl_complex lv_mutau {lv_mutau_re*units.eV, lv_mutau_im*units.eV};
-        LVParameters lv {lv_emu, lv_mutau};
+        gsl_complex lv_etau {lv_etau_re*units.eV, lv_etau_im*units.eV};
+        LVParameters lv {lv_emu, lv_mutau, lv_etau, lv_ee, lv_mumu};
         Set_LV_OpMatrix(lv);
     }
 
@@ -135,6 +139,11 @@ class nuSQUIDSLV: public nuSQUIDS {
        gsl_matrix_complex_set(M,0,1,gsl_complex_conjugate(lv_params.c_emu));
        gsl_matrix_complex_set(M,2,1,lv_params.c_mutau);
        gsl_matrix_complex_set(M,1,2,gsl_complex_conjugate(lv_params.c_mutau));
+       gsl_matrix_complex_set(M,2,0,lv_params.c_emtau);
+       gsl_matrix_complex_set(M,0,2,gsl_complex_conjugate(lv_params.c_emtau));
+       gsl_matrix_complex_set(M,0,0,lv_params.c_ee);
+       gsl_matrix_complex_set(M,1,1,lv_params.c_mumu);
+       gsl_matrix_complex_set(M,2,2,-lv_params.cee-lv_params.cmumu);
        LVP = squids::SU_vector(M);
        // rotate from flavor to mass basis
        LVP.RotateToB1(params);
