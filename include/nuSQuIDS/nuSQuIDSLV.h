@@ -139,11 +139,11 @@ class nuSQUIDSLV: public nuSQUIDS {
        gsl_matrix_complex_set(M,0,1,gsl_complex_conjugate(lv_params.c_emu));
        gsl_matrix_complex_set(M,2,1,lv_params.c_mutau);
        gsl_matrix_complex_set(M,1,2,gsl_complex_conjugate(lv_params.c_mutau));
-       gsl_matrix_complex_set(M,2,0,lv_params.c_emtau);
-       gsl_matrix_complex_set(M,0,2,gsl_complex_conjugate(lv_params.c_emtau));
+       gsl_matrix_complex_set(M,2,0,lv_params.c_etau);
+       gsl_matrix_complex_set(M,0,2,gsl_complex_conjugate(lv_params.c_etau));
        gsl_matrix_complex_set(M,0,0,lv_params.c_ee);
        gsl_matrix_complex_set(M,1,1,lv_params.c_mumu);
-       gsl_matrix_complex_set(M,2,2,-lv_params.cee-lv_params.cmumu);
+       gsl_matrix_complex_set(M,2,2,gsl_complex_sub(gsl_complex_negative(lv_params.c_ee), lv_params.c_mumu));
        LVP = squids::SU_vector(M);
        // rotate from flavor to mass basis
        LVP.RotateToB1(params);
