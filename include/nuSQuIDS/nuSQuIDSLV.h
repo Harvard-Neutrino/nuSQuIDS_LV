@@ -49,10 +49,18 @@ class nuSQUIDSLV: public nuSQUIDS {
       double cemui = GSL_IMAG(c_params.c_emu);
       H5LTset_attribute_double(hdf5_loc_id,"c_values","c_e_mu_real" ,&(cemur),1);
       H5LTset_attribute_double(hdf5_loc_id,"c_values","c_e_mu_imag" ,&(cemui),1);
+      double cetaur = GSL_REAL(c_params.c_etau);
+      double cetaui = GSL_IMAG(c_params.c_etau);
+      H5LTset_attribute_double(hdf5_loc_id,"c_values","c_e_tau_real",&(cetaur),1);
+      H5LTset_attribute_double(hdf5_loc_id,"c_values","c_e_tau_imag",&(cetaui),1);
+      double cee = GSL_REAL(c_params.c_ee);
+      HFLTset_attribute_double(hdf5_loc_id,"c_values","c_e_e",&(cee),1);
+      double cmumu = GSL_REAL(c_params.c_mumu);
+      HFLTset_attribute_double(hdf5_loc_id,"c_values","c_mu_mu",&(cmumu),1);
     }
 
     void AddToReadHDF5(hid_t hdf5_loc_id){
-      double cmutaur,cmutaui,cemur,cemui;
+      double cmutaur,cmutaui,cemur,cemui,cetaur,cetaui,cee,cmumu;
       // here we read the new parameters now saved in the HDF5 file
       //hid_t lv = H5Gopen(hdf5_loc_id, "c_values", H5P_DEFAULT);
       //H5Gclose(lv);
@@ -60,7 +68,11 @@ class nuSQUIDSLV: public nuSQUIDS {
       H5LTget_attribute_double(hdf5_loc_id,"c_values","c_mu_tau_imag" ,&(cmutaui));
       H5LTget_attribute_double(hdf5_loc_id,"c_values","c_e_mu_real" ,&(cemur));
       H5LTget_attribute_double(hdf5_loc_id,"c_values","c_e_mu_imag" ,&(cemui));
-      c_params = {gsl_complex_rect(cemur,cemui),gsl_complex_rect(cmutaur,cmutaui)};
+      H5LTget_attribute_double(hdf5_loc_id,"c_values","c_e_tau_real" ,&(cetaur));
+      H5LTget_attribute_double(hdf5_loc_id,"c_values","c_e_tau_imag" ,&(cetaui));
+      H5LTget_attribute_double(hdf5_loc_id,"c_values","c_e_e" ,&(cee));
+      H5LTget_attribute_double(hdf5_loc_id,"c_values","c_mu_mu" ,&(cmumu)); 
+      c_params = {gsl_complex_rect(cemur,cemui),gsl_complex_rect(cmutaur,cmutaui),gsl_complex_rect(cetaur,cetaui),cee,cmumu};
       Set_LV_OpMatrix(c_params);
     }
 
@@ -127,7 +139,7 @@ class nuSQUIDSLV: public nuSQUIDS {
         gsl_complex lv_emu {lv_emu_re*units.eV, lv_emu_im*units.eV};
         gsl_complex lv_mutau {lv_mutau_re*units.eV, lv_mutau_im*units.eV};
         gsl_complex lv_etau {lv_etau_re*units.eV, lv_etau_im*units.eV};
-        LVParameters lv {lv_emu, lv_mutau, lv_etau, lv_ee, lv_mumu};
+        LVParameters lv {lv_emu, lv_mutau, lv_etau, lv_ee*units.eV, lv_mumu*units.eV};
         Set_LV_OpMatrix(lv);
     }
 
@@ -263,4 +275,5 @@ class nuSQUIDSLVAtm: public nuSQUIDSAtm<nuSQUIDSLV> {
 } // close nusquids namespace
 
 #endif //nusquidslv_h
+
 
