@@ -140,7 +140,7 @@ BOOST_PYTHON_MODULE(nuSQuIDS)
 
   auto nusquids_lv = RegisterBasicNuSQuIDSPythonBindings<nuSQUIDSLV>("nuSQUIDSLV");
   auto nusquids_lv_atm = RegisterBasicAtmNuSQuIDSPythonBindingsHelper<nuSQUIDSLVAtm, nuSQUIDSLV>("nuSQUIDSLVAtm");
-  void (nuSQUIDSLVAtm::*Set_LV_OpMatrix)(double lv_emu_re, double lv_emu_im, double lv_mutau_re, double lv_mutau_im) = &nuSQUIDSLVAtm::Set_LV_OpMatrix;
+  void (nuSQUIDSLVAtm::*Set_LV_OpMatrix)(double lv_emu_re, double lv_emu_im, double lv_mutau_re, double lv_mutau_im, double lv_etau_re, double lv_etau_im, double lv_ee, double lv_mumu) = &nuSQUIDSLVAtm::Set_LV_OpMatrix;
   void (nuSQUIDSLVAtm::*Set_LV_Operator)(squids::SU_vector op) = &nuSQUIDSLVAtm::Set_LV_Operator;
   void (nuSQUIDSLVAtm::*Set_LV_EnergyPower)(int n) = &nuSQUIDSLVAtm::Set_LV_EnergyPower;
   nusquids_lv_atm.GetClassObject()->def("Set_LV_OpMatrix", Set_LV_OpMatrix);
