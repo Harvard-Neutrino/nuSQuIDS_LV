@@ -116,7 +116,7 @@ class nuSQUIDSLV: public nuSQUIDS {
     }
 
     nuSQUIDSLV(marray<double,1> E_range_,unsigned int numneu_,NeutrinoType NT_ = both,
-         bool iinteraction_ = false, std::shared_ptr<NeutrinoCrossSections> ncs_ = nullptr):
+         bool iinteraction_ = false, std::shared_ptr<CrossSectionLibrary> ncs_ = nullptr):
           nuSQUIDS(E_range_,numneu_,NT_, iinteraction_, ncs_)
     {
       // just allocate some matrices
