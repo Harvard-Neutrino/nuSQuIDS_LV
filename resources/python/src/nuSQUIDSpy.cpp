@@ -204,6 +204,7 @@ BOOST_PYTHON_MODULE(nuSQuIDS)
   ;
 
   class_<squids::Const, boost::noncopyable>("Const")
+    .def_readonly("GF",&squids::Const::GF)
     .def_readonly("PeV",&squids::Const::PeV)
     .def_readonly("TeV",&squids::Const::TeV)
     .def_readonly("GeV",&squids::Const::GeV)
