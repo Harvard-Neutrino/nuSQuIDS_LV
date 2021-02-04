@@ -405,6 +405,7 @@ template<typename AtmType, typename BaseType, typename = typename std::enable_if
       class_object->def("Set_abs_error",(void(AtmType::*)(double, unsigned int))&AtmType::Set_abs_error);
       class_object->def("Set_EvolLowPassCutoff",&AtmType::Set_EvolLowPassCutoff);
       class_object->def("Set_EvolLowPassScale",&AtmType::Set_EvolLowPassScale);
+      class_object->def("Set_AutoEvolLowPass", &AtmType::Set_AutoEvolLowPass);
       class_object->def("GetNumE",&AtmType::GetNumE);
       class_object->def("GetNumCos",&AtmType::GetNumCos);
       class_object->def("GetNumNeu",&AtmType::GetNumNeu);

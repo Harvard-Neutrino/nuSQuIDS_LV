@@ -1903,6 +1903,94 @@ class nuSQUIDSAtm {
         nsq.Set_EvolLowPassScale(val);
       }
     }
+
+    void Set_AutoEvolLowPass(double delta_phi_max, double delta_phi_scale){
+      double x = 1;
+      double orig_t;
+      marray<double,1> final_times({nusq_array.size()});
+      marray<double,5> delta_lambda; // iz, ie, irho, ilam, jlam
+      double lambda_size;
+
+      bool is_initialized = false;
+
+      for(unsigned int iz=0; iz < nusq_array.size(); ++iz) {
+        BaseSQUIDS & nsq = nusq_array[iz];
+        orig_t = nsq.Get_t();
+        final_times[iz] = nsq.track->GetFinalX()-nsq.track->GetInitialX();
+        nsq.Set_t(x*final_times.back());
+        for(unsigned int ie = 0; ie < enu_array.size(); ++ie) {
+          for(unsigned int irho = 0; irho < GetNumRho(); ++irho) {
+            squids::SU_vector h0 = nsq.GetHamiltonian(ie, irho);
+            std::pair<std::unique_ptr<gsl_vector, void (*)(gsl_vector*)>, std::unique_ptr<gsl_matrix_complex, void (*)(gsl_matrix_complex*)> > eigen_sys = h0.GetEigenSystem(false); // false ==> do not sort
+            lambda_size = eigen_sys.first->size;
+            marray<double,1> lambda({lambda_size});
+            for(unsigned int ilam = 0; ilam < lambda_size; ++ilam) {
+                lambda[ilam] = gsl_vector_get(eigen_sys.first.get(), ilam);
+            }
+            if(not is_initialized) {
+              delta_lambda = marray<double,5>({nusq_array.size(),enu_array.size(),GetNumRho(),lambda_size,lambda_size});
+            }
+            for(unsigned int ilam = 0; ilam < lambda_size; ++ilam) {
+              for(unsigned int jlam = ilam+1; jlam < lambda_size; ++jlam) {
+                double diff = std::abs(lambda[ilam] - lambda[jlam]);
+                delta_lambda[{iz, ie, irho, ilam, jlam}] = diff;
+                delta_lambda[{iz, ie, irho, jlam, ilam}] = diff;
+              }
+            }
+          }
+          nsq.Set_EvolLowPassScale(delta_phi_scale);
+          nsq.Set_t(orig_t);
+          nsq.PreDerive(orig_t);
+        }
+      }
+      for(unsigned int iz=0; iz < nusq_array.size(); ++iz) {
+        double nsq_min_bound = std::numeric_limits<double>::max();
+        for(unsigned int ie = 0; ie < enu_array.size(); ++ie) {
+          for(unsigned int irho = 0; irho < GetNumRho(); ++irho) {
+            std::vector<std::pair<unsigned int, unsigned int>> neighbors;
+            for(int dz=1; dz > -2; dz -= 2) {
+              int jz = iz+dz;
+              if(jz<0 or jz >= nusq_array.size())
+                continue;
+              neighbors.push_back({jz,ie});
+            }
+            for(int de=1; de > -2; de -= 2) {
+              int je = ie+de;
+              if(je<0 or je >= enu_array.size())
+                continue;
+              neighbors.push_back({iz,je});
+            }
+            double min_bound = std::numeric_limits<double>::max();
+            for(std::pair<unsigned int, unsigned int>& neighbor : neighbors) {
+              unsigned int jz = neighbor.first;
+              unsigned int je = neighbor.second;
+              for(unsigned int ilam = 0; ilam < lambda_size; ++ilam) {
+                for(unsigned int jlam = ilam+1; jlam < lambda_size; ++jlam) {
+                  double omega_0 = delta_lambda[{iz,ie,irho,ilam,jlam}];
+                  double omega_1 = delta_lambda[{jz,je,irho,ilam,jlam}];
+                  double phi_0 = omega_0 * final_times[iz];
+                  double phi_1 = omega_0 * final_times[jz];
+                  double delta_phi = std::abs(phi_0 - phi_1);
+                  double bound = omega_0 / delta_phi;
+                  if(bound < min_bound) {
+                    min_bound = bound;
+                  }
+                }
+              }
+            }
+            // Ideally we would set a different low pass filter for each zenith/energy/rho...
+            // That would happen right here
+            // Instead the best we can do is set a low pass filter for each nusquids object
+            if(min_bound < nsq_min_bound) {
+              nsq_min_bound = min_bound;
+            }
+          }
+        }
+        BaseSQUIDS & nsq = nusq_array[iz];
+        nsq.Set_EvolLowPassCutoff(delta_phi_max * nsq_min_bound);
+        nsq.Set_EvolLowPassScale(delta_phi_scale * nsq_min_bound);
+      }
+    }
 };
 
 
