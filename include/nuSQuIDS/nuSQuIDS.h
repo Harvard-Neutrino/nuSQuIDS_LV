@@ -1938,10 +1938,9 @@ class nuSQUIDSAtm {
               }
             }
           }
-          nsq.Set_EvolLowPassScale(delta_phi_scale);
-          nsq.Set_t(orig_t);
-          nsq.PreDerive(orig_t);
         }
+        nsq.Set_t(orig_t);
+        nsq.PreDerive(orig_t);
       }
       for(unsigned int iz=0; iz < nusq_array.size(); ++iz) {
         double nsq_min_bound = std::numeric_limits<double>::max();
