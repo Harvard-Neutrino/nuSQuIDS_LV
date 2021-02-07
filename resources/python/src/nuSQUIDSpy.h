@@ -311,8 +311,10 @@ template<typename BaseType, typename = typename std::enable_if<std::is_base_of<n
       class_object->def("GetHamiltonian",&BaseType::GetHamiltonian);
       class_object->def("GetState",(const squids::SU_vector&(BaseType::*)(unsigned int))&BaseType::GetState, return_value_policy<copy_const_reference>());
       class_object->def("GetState",(const squids::SU_vector&(BaseType::*)(unsigned int, unsigned int))&BaseType::GetState, return_value_policy<copy_const_reference>());
-      class_object->def("Set_EvolLowPassCutoff", &BaseType::Set_EvolLowPassCutoff);
-      class_object->def("Set_EvolLowPassScale", &BaseType::Set_EvolLowPassScale);
+      class_object->def("Set_EvolLowPassCutoff", (void(BaseType::*)(const marray<double,1>&))&BaseType::Set_EvolLowPassCutoff);
+      class_object->def("Set_EvolLowPassCutoff", (void(BaseType::*)(double))&BaseType::Set_EvolLowPassCutoff);
+      class_object->def("Set_EvolLowPassScale", (void(BaseType::*)(const marray<double,1>&))&BaseType::Set_EvolLowPassScale);
+      class_object->def("Set_EvolLowPassScale", (void(BaseType::*)(double))&BaseType::Set_EvolLowPassScale);
       class_object->def("Set_h_min",&BaseType::Set_h_min);
       class_object->def("Set_h_max",&BaseType::Set_h_max);
       class_object->def("Set_h",&BaseType::Set_h);
@@ -361,6 +363,7 @@ template<typename BaseType, typename = typename std::enable_if<std::is_base_of<n
 MAKE_OVERLOAD_TEMPLATE(nuSQUIDSAtm_EvalFlavor_overload,EvalFlavor,3,5)
 MAKE_OVERLOAD_TEMPLATE(nuSQUIDSAtm_Set_initial_state,Set_initial_state,1,2)
 MAKE_OVERLOAD_TEMPLATE(nuSQUIDSAtm_GetStates_overload, GetStates, 0, 1)
+MAKE_OVERLOAD_TEMPLATE(nuSQUIDSAtm_EvalFlavorAutoLowPass_overload, GetStates, 2, 3)
 
 // registration for atmospheric template
 template<typename AtmType, typename BaseType, typename = typename std::enable_if<std::is_base_of<nuSQUIDS,BaseType>::value>::type>

@@ -301,13 +301,13 @@ void nuSQUIDS::EvolveProjectors(double x){
   std::unique_ptr<double[]> evol_buf(new double[H0_array[0].GetEvolveBufferSize()]);
   for(unsigned int ei = 0; ei < ne; ei++){
     H0_array[ei].PrepareEvolve(evol_buf.get(),x-Get_t_initial());
-    if (evol_lowpass_cutoff > 0){
+    if (evol_lowpass_cutoff.extent(0) > ei and evol_lowpass_scale.extent(0) > ei and evol_lowpass_cutoff[ei] > 0){
       // std::cout << "evol_buf: ";
       // for (unsigned int i = 0; i < H0_array[ei].GetEvolveBufferSize(); i++){
       //   std::cout << evol_buf.get()[i] << "  ";
       // }
       // std::cout << std::endl;
-      H0_array[ei].LowPassFilter(evol_buf.get(), evol_lowpass_cutoff, evol_lowpass_scale);
+      H0_array[ei].LowPassFilter(evol_buf.get(), evol_lowpass_cutoff[ei], evol_lowpass_scale[ei]);
       // std::cout << "evol_buf after filter: ";
       // for (unsigned int i = 0; i < H0_array[ei].GetEvolveBufferSize(); i++){
       //   std::cout << evol_buf.get()[i] << "  ";
@@ -1440,6 +1440,32 @@ double nuSQUIDS::EvalFlavor(unsigned int flv,double EE,unsigned int rho) const{
   return GetExpectationValueD(b1_proj[rho][flv], rho, EE);
 }
 
+double nuSQUIDS::EvalFlavorLowPass(unsigned int flv,double EE,unsigned int rho) const{
+  if ( not ienergy )
+    throw std::runtime_error("nuSQUIDS::Error::Energy not set.");
+  if ( rho != 0 and NT != both )
+    throw std::runtime_error("nuSQUIDS::Error::Cannot evaluate rho != 0 in this NT mode.");
+  if ( EE < *E_range.begin() || EE > *E_range.rbegin() )
+    throw std::runtime_error("nuSQUIDS::Error::Energy "+std::to_string(EE)+" outside of propagated energy range, ["
+                             +std::to_string(*E_range.begin())+","+std::to_string(*E_range.rbegin())+"].");
+  if(evol_lowpass_cutoff.extent(0) != ne or evol_lowpass_scale.extent(0) != ne)
+    throw std::runtime_error("nuSQUIDS::Error::Cannot apply LowPassFilter because LowPassCutoff or LowPassScale are not initialized.");  
+  if ( basis == mass )
+    return b1_proj[rho][flv]*GetIntermediateState(rho,EE);
+
+  auto xit=std::lower_bound(E_range.begin(),E_range.end(),EE);
+  if(xit==E_range.end())
+    throw std::runtime_error("SQUIDS::GetExpectationValueD : x value not in the array.");
+  if(xit!=E_range.begin())
+    xit--;
+  size_t xid=std::distance(E_range.begin(),xit);
+  double f2=((EE-E_range[xid])/(E_range[xid+1]-E_range[xid]));
+  double f1=1-f2;
+  double scale = evol_lowpass_scale[xid]*f1 + evol_lowpass_scale[xid+1]*f2;
+  double cutoff = evol_lowpass_cutoff[xid]*f1 + evol_lowpass_cutoff[xid+1]*f2;
+  return GetExpectationValueD(b1_proj[rho][flv], rho, EE, scale, cutoff);
+}
+
 double nuSQUIDS::EvalMass(unsigned int flv,double EE, unsigned int rho, double scale, std::vector<bool>& avr) const{
   if ( not ienergy )
     throw std::runtime_error("nuSQUIDS::Error::Energy not set.");
@@ -1750,6 +1776,10 @@ void nuSQUIDS::WriteStateHDF5(std::string str,std::string grp,bool save_cross_se
   H5LTset_attribute_int(group, "basic", "tau_regeneration", &auxint, 1);
   auxint = static_cast<int>(iglashow);
   H5LTset_attribute_int(group, "basic", "glashow_resonance", &auxint, 1);
+  auxint = static_cast<int>(average);
+  H5LTset_attribute_int(group, "basic", "average", &auxint, 1);
+  auxint = static_cast<int>(lowpass);
+  H5LTset_attribute_int(group, "basic", "lowpass", &auxint, 1);
   double auxt = Get_t();
   H5LTset_attribute_double(group, "basic", "squids_time", &auxt,1);
   double auxt_ini = Get_t_initial();
@@ -2111,6 +2141,10 @@ void nuSQUIDS::ReadStateHDF5Internal(std::string str,std::string grp,std::shared
   if(err>=0) tauregeneration=auxint;
   err=H5LTget_attribute_int(group_id, "basic", "glashow_resonance", &auxint);
   if(err>=0) iglashow=auxint;
+  err=H5LTget_attribute_int(group_id, "basic", "average", &auxint);
+  if(err>=0) average=auxint;
+  err=H5LTget_attribute_int(group_id, "basic", "lowpass", &auxint);
+  if(err>=0) lowpass=auxint;
 
   double squids_time;
   H5LTget_attribute_double(group_id, "basic", "squids_time", &squids_time);
@@ -2333,6 +2367,10 @@ void nuSQUIDS::ReadStateHDF5(std::string str,std::string grp,std::string cross_s
   if(err>=0) tauregeneration=auxint;
   err=H5LTget_attribute_int(group, "basic", "glashow_resonance", &auxint);
   if(err>=0) iglashow=auxint;
+  err=H5LTget_attribute_int(group, "basic", "average", &auxint);
+  if(err>=0) average=auxint;
+  err=H5LTget_attribute_int(group, "basic", "lowpass", &auxint);
+  if(err>=0) lowpass=auxint;
 
   double squids_time;
   H5LTget_attribute_double(group, "basic", "squids_time", &squids_time);
@@ -2839,12 +2877,37 @@ void nuSQUIDS::Set_ProgressBar(bool opt){
 }
 
 void nuSQUIDS::Set_EvolLowPassCutoff(double val){
+  if(evol_lowpass_cutoff.extent(0) != ne) {
+    evol_lowpass_cutoff = marray<double,1>({ne});
+  }
+  for(unsigned int ie=0; ie < ne; ++ie) {
+    evol_lowpass_cutoff[ie] = val;
+  }
+}
+
+void nuSQUIDS::Set_EvolLowPassCutoff(const marray<double,1>& val){
+  if(val.extent(0) != ne) {
+    throw std::runtime_error("nuSQUIDS::Error::LowPassCutoff extents must match the number of energy nodes, thus LowPassCutoff cannot be set to the specified value.");
+  }
   evol_lowpass_cutoff = val;
 }
 
 void nuSQUIDS::Set_EvolLowPassScale(double val){
+  if(evol_lowpass_scale.extent(0) != ne) {
+    evol_lowpass_scale = marray<double,1>({ne});
+  }
+  for(unsigned int ie=0; ie < ne; ++ie) {
+    evol_lowpass_scale[ie] = val;
+  }
+}
+
+void nuSQUIDS::Set_EvolLowPassScale(const marray<double,1>& val){
+  if(val.extent(0) != ne) {
+    throw std::runtime_error("nuSQUIDS::Error::LowPassScale extents must match the number of energy nodes, thus LowPassScale cannot be set to the specified value.");
+  }
   evol_lowpass_scale = val;
 }
+
 void nuSQUIDS::Set_IncludeOscillations(bool opt){
   ioscillations = opt;
 }
