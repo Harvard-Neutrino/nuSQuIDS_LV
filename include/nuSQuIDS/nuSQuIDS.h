@@ -447,6 +447,16 @@ protected:
     /// \warning Since the RHS of the differential equation only involves flavor projectors
     /// we do not current evolve mass projectors.
     void EvolveProjectors(double t);
+    /// \brief User supplied function that is called when evolving the projectors.
+    /// @param x Position of the system.
+    /// @param ei The energy index.
+    /// @param evol_buf The per-evolution buffer of the energy index.
+    /// @see EvolveProjectors
+    virtual void AddToEvolveProjectors(double x,unsigned int ei,double evol_buf[]){}
+    /// \brief User supplied function that is called when evolving the projectors.
+    /// @param x Position of the system.
+    /// @see EvolveProjectors
+    virtual void AddToEvolveProjectors(double x){}
 
     // bool requirements
   private:
@@ -1967,6 +1977,7 @@ class nuSQUIDSAtm {
               continue;
             neighbors.push_back({iz,je});
           }
+          //double min_bound = 1.00/(30.0*units.km);
           double min_bound = std::numeric_limits<double>::max();
           for(std::pair<unsigned int, unsigned int>& neighbor : neighbors) {
             unsigned int jz = neighbor.first;
@@ -2089,11 +2100,16 @@ class nuSQUIDSAtm {
       for(unsigned int iz=0; iz < nusq_array.size(); ++iz) {
         BaseSQUIDS & nsq = nusq_array[iz];
         marray<double,1> nsq_bounds({enu_array.size()});
+        double min_bound = std::numeric_limits<double>::max();
         for(unsigned int ie = 0; ie < enu_array.size(); ++ie) {
           nsq_bounds[ie] = bounds[{iz,ie}];
+          if(nsq_bounds[ie] < min_bound) {
+            min_bound = nsq_bounds[ie];
+          }
         }
         nsq.Set_EvolLowPassCutoff(delta_phi_max * nsq_bounds);
         nsq.Set_EvolLowPassScale(delta_phi_scale * nsq_bounds);
+        //nsq.Set_h(1.0/min_bound);
       }
     }
 };

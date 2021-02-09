@@ -322,7 +322,9 @@ void nuSQUIDS::EvolveProjectors(double x){
           (b1_proj[rho][flv].Evolve(evol_buf.get()));
       }
     }
+    AddToEvolveProjectors(x,ei,evol_buf.get());
   }
+  AddToEvolveProjectors(x);
   return;
 }
 

@@ -19,11 +19,14 @@ class nuSQUIDSLV: public nuSQUIDS {
   private:
     const squids::Const units;
     bool lv_parameters_set = false;
+    bool lv_power_set = false;
     int n_ = 1;
     LVParameters c_params;
     squids::SU_vector LVP;
     std::vector<squids::SU_vector> LVP_evol;
+    marray<double,1> energy_pow_array;
 
+    /*
     void AddToPreDerive(double x){
       if(!lv_parameters_set)
         throw std::runtime_error("LV parameters not set");
@@ -32,6 +35,16 @@ class nuSQUIDSLV: public nuSQUIDS {
         squids::SU_vector h0 = H0(E_range[ei],0);
         LVP_evol[ei] = LVP.Evolve(h0,(x-Get_t_initial()));
       }
+    }
+    */
+    virtual void AddToEvolveProjectors(double x,unsigned int ei,double evol_buf[]) {
+      if(!lv_parameters_set)
+        throw std::runtime_error("LV parameters not set");
+      if(!lv_power_set)
+        throw std::runtime_error("LV energy power not set");
+      // asumming same mass hamiltonian for neutrinos/antineutrinos
+      LVP_evol[ei] = squids::detail::guarantee
+        <squids::detail::NoAlias | squids::detail::EqualSizes>(LVP.Evolve(evol_buf));
     }
 
     void AddToWriteHDF5(hid_t hdf5_loc_id) const {
@@ -76,6 +89,23 @@ class nuSQUIDSLV: public nuSQUIDS {
       Set_LV_OpMatrix(c_params);
     }
 
+  public:
+    /*
+    squids::SU_vector H0(double Enu, unsigned int irho) const{
+      squids::SU_vector potential = nuSQUIDS::H0(Enu, irho);
+      double sign = 1;
+      if ((irho == 1 and NT==both) or NT==antineutrino){
+          // antineutrino matter potential flips sign
+          sign*=(-1);
+      }
+      if(!lv_parameters_set or !lv_power_set) {
+      }
+      else {
+        potential += sign*pow(Enu,n_)*LVP; // <- super important line here is where all the physics is set
+      }
+      return potential;
+    }
+    */
 
     squids:: SU_vector HI(unsigned int ie,unsigned int irho) const {
       squids::SU_vector potential = nuSQUIDS::HI(ie, irho);
@@ -85,7 +115,7 @@ class nuSQUIDSLV: public nuSQUIDS {
           sign*=(-1);
       }
       // ================= HERE WE ADD THE NEW PHYSICS ===================
-      potential += sign*pow(E_range[ie],n_)*LVP_evol[ie]; // <- super important line here is where all the physics is set
+      potential += sign*energy_pow_array[ie]*LVP_evol[ie]; // <- super important line here is where all the physics is set
       // ================= HERE WE ADD THE NEW PHYSICS ===================
       return potential;
     }
@@ -98,7 +128,8 @@ class nuSQUIDSLV: public nuSQUIDS {
         n_(other.n_),
         LVP(other.LVP),
         LVP_evol(other.LVP_evol),
-        lv_parameters_set(other.lv_parameters_set)
+        lv_parameters_set(other.lv_parameters_set),
+        lv_power_set(other.lv_power_set)
     {
     }
 
@@ -113,6 +144,7 @@ class nuSQUIDSLV: public nuSQUIDS {
         LVP = other.LVP;
         LVP_evol = other.LVP_evol;
         lv_parameters_set = other.lv_parameters_set;
+        lv_power_set = other.lv_power_set;
     }
 
     nuSQUIDSLV(marray<double,1> E_range_,unsigned int numneu_,NeutrinoType NT_ = both,
@@ -141,6 +173,7 @@ class nuSQUIDSLV: public nuSQUIDS {
         gsl_complex lv_etau {lv_etau_re*units.eV, lv_etau_im*units.eV};
         LVParameters lv {lv_emu, lv_mutau, lv_etau, lv_ee*units.eV, lv_mumu*units.eV};
         Set_LV_OpMatrix(lv);
+        //iniH0();
     }
 
     void Set_LV_OpMatrix(LVParameters & lv_params){
@@ -163,6 +196,7 @@ class nuSQUIDSLV: public nuSQUIDS {
        gsl_matrix_complex_free(M);
        c_params = lv_params;
        lv_parameters_set = true;
+       //iniH0();
     }
 
     void Set_LV_OpMatrix(gsl_matrix_complex * cmatrix){
@@ -174,6 +208,7 @@ class nuSQUIDSLV: public nuSQUIDS {
        // rotate from flavor to mass basis
        LVP.RotateToB1(params);
        lv_parameters_set = true;
+       //iniH0();
     }
 
     void Set_LV_Operator(squids::SU_vector op){
@@ -182,20 +217,29 @@ class nuSQUIDSLV: public nuSQUIDS {
        // rotate from flavor to mass basis
        LVP.RotateToB1(params);
        lv_parameters_set = true;
+       //iniH0();
     }
 
     void Set_LV_EnergyPower(int n){
       n_ = n;
+      energy_pow_array = E_range;
+      for(unsigned int ie=0; ie<energy_pow_array.extent(0); ++ie) {
+        energy_pow_array[ie] = pow(energy_pow_array[ie], n_);
+      }
+      lv_power_set = true;
+      //iniH0();
     }
 
     void Set_MixingAngle(unsigned int i, unsigned int j,double angle){
       nuSQUIDS::Set_MixingAngle(i,j,angle);
       lv_parameters_set = false;
+      //iniH0();
     }
 
     void Set_CPPhase(unsigned int i, unsigned int j,double angle){
       nuSQUIDS::Set_CPPhase(i,j,angle);
       lv_parameters_set = false;
+      //iniH0();
     }
 
     void dump_probabilities() const {
@@ -222,20 +266,26 @@ class nuSQUIDSLV: public nuSQUIDS {
     // The functions below are needed due to some nusquids gymnastics.
     void Set_initial_state(const marray<double,1>& v, Basis basis=flavor){
       bool lvps = lv_parameters_set;
+      bool lvpows = lv_power_set;
       nuSQUIDS::Set_initial_state(v,basis);
       lv_parameters_set = lvps;
+      lv_power_set = lvpows;
     }
 
     void Set_initial_state(const marray<double,2>& v, Basis basis=flavor){
       bool lvps = lv_parameters_set;
+      bool lvpows = lv_power_set;
       nuSQUIDS::Set_initial_state(v,basis);
       lv_parameters_set = lvps;
+      lv_power_set = lvpows;
     }
 
     void Set_initial_state(const marray<double,3>& v, Basis basis=flavor){
       bool lvps = lv_parameters_set;
+      bool lvpows = lv_power_set;
       nuSQUIDS::Set_initial_state(v,basis);
       lv_parameters_set = lvps;
+      lv_power_set = lvpows;
     }
 };
 
