@@ -70,7 +70,6 @@ enum Basis {
   interaction=0b11
 };
 
-
 ///\class nuSQUIDS
 ///\brief nu-SQuIDS main class
 class nuSQUIDS: public squids::SQuIDS {
@@ -395,8 +394,8 @@ protected:
     ///  It is used to construct nuSQUIDS#H0_array and H0()
     squids::SU_vector DM2;
     /// \brief Stores the time independent hamiltonian corresponding to each energy node.
-    marray<squids::SU_vector,1> H0_array;
-  
+    marray<squids::SU_vector,2> H0_array;
+    
     /// \brief Product of physical constants needed by HI.
     double HI_constants;
     /// \brief The density of the body at the current point on the track
@@ -406,13 +405,13 @@ protected:
 
     /// \brief Mass basis projectors.
     /// \details The i-entry corresponds to the projector in the ith mass eigenstate.
-    marray<squids::SU_vector,1> b0_proj;
+    marray<squids::SU_vector,2> b0_proj;
     /// \brief Flavor basis projectors.
     /// \details The first dismension corresponds to the neutrino type. When NeutrinoType = both, then
     /// the first dimension equal 0 means neutrinos and 1 antineutrinos. The second dimension corresponds
     /// to the flavor eigenstates where 0 corresponds to nu_e, 1 to nu_mu, 2 to nu_tau, and the others
     /// to sterile neutrinos.
-    marray<squids::SU_vector,2> b1_proj;
+    marray<squids::SU_vector,3> b1_proj;
     /// \brief Mass basis projectors in the interaction picture.
     /// The index meaning are the same as nuSQUIDS#b1_proj but for mass eigenstates,
     /// with an added third dimension that corresponds to the energy node index.
@@ -421,6 +420,15 @@ protected:
     /// The index meaning are the same as nuSQUIDS#b1_proj ,
     /// with an added third dimension that corresponds to the energy node index.
     marray<squids::SU_vector,3> evol_b1_proj;
+
+    /// \brief Rotation operators between the mass basis and evolution basis.
+    /// If M is in the mass basis then U^\dagger(M)U rotates M to the evolution basis.
+    marray<std::unique_ptr<gsl_matrix_complex,void (*)(gsl_matrix_complex*)>,2> H0_rotations;
+
+    /// \brief Rotation operators in the interaction picture
+    marray<std::unique_ptr<gsl_matrix_complex,void (*)(gsl_matrix_complex*)>,2> evol_H0_rotations;
+
+    double rotation_evol_time=0;
 
     ///Cache of precalculated results for InteractionsRho.
     ///Used only when interactions are on and oscillations are off.
@@ -457,6 +465,10 @@ protected:
     /// @param x Position of the system.
     /// @see EvolveProjectors
     virtual void AddToEvolveProjectors(double x){}
+    /// \brief Evolves the rotation operators to a time t.
+    void EvolveRotations(double t);
+    virtual void AddToEvolveRotations(double x,unsigned int ei,double evol_buf[]){}
+    virtual void AddToEvolveRotations(double x){}
 
     // bool requirements
   private:
@@ -509,6 +521,8 @@ protected:
     bool average = false;
     /// \brief Boolean that enables lowpass filter during propagation and evaluation.
     bool lowpass = false;
+    /// \brief Boolean that enables operator evolution with additional terms in H0.
+    bool useBSMBasis = false;
   protected:
     /// \brief Initializes flavor and mass projectors
     /// \warning Antineutrinos are handle by means of the AntineutrinoCPFix() function
@@ -912,12 +926,12 @@ protected:
       return state[ei].rho[rho];
     }
     /// \brief Returns the flavor projector
-    const squids::SU_vector& GetFlavorProj(unsigned int flv,unsigned int rho = 0) const{
-      return b1_proj[rho][flv];
+    const squids::SU_vector& GetFlavorProj(unsigned int flv,unsigned int rho = 0,unsigned int ei = 0) const{
+      return b1_proj[rho][flv][ei];
     }
     /// \brief Returns the mass projector
-    const squids::SU_vector& GetMassProj(unsigned int flv,unsigned int rho = 0) const{
-      return b0_proj[flv];
+    const squids::SU_vector& GetMassProj(unsigned int flv,unsigned int rho = 0,unsigned int ei = 0) const{
+      return b0_proj[flv][ei];
     }
 
     /// \brief Returns the trajectory object.
@@ -1061,6 +1075,62 @@ protected:
     void SetNeutrinoCrossSections(std::shared_ptr<CrossSectionLibrary> xs) {
        ncs=xs;
        interactions_initialized=false;
+    }
+
+    void SetUseBSMBasis(bool val) {
+      if(useBSMBasis == val)
+        return;
+      useBSMBasis = val;
+      marray<SU_vector,2> b0_proj_mass = b0_proj;
+      marray<SU_vector,3> b1_proj_mass = b1_proj;
+      b0_proj = marray<SU_vector,2>({ne,numneu});
+      b1_proj = marray<SU_vector,3>({nrhos,ne,numneu});
+      H0_rotations = marray<std::unique_ptr<gsl_matrix_complex,void (*)(gsl_matrix_complex*)>,2>({ne, nrhos});
+      if(val and ienergy) {
+        for(unsigned int r = 0; r < nrhos; r++){
+          for(unsigned int ei = 0; ei < ne; ei++){
+            // Get full H0 from derived class
+            H0_array[ei][r] = H0(E_range[ei],r);
+
+            // Diagonalize H0
+            std::pair<
+              std::unique_ptr<gsl_vector, void (*)(gsl_vector*)>,
+              std::unique_ptr<gsl_matrix_complex, void (*)(gsl_matrix_complex*)>
+                > eigen_sys = H0_array[ei][r].GetEigenSystem(true); // true ==> sort
+
+            H0_array[ei][r] = SU_vector(nsun);
+
+            for(unsigned int ilam = 0; ilam < eigen_sys.first->size; ++ilam) {
+                H0_array[ei][r][ilam][ilam] = gsl_vector_get(eigen_sys.first.get(), ilam);
+            }
+
+            for(unsigned int j = 0; j < numneu; j++){
+              b1_proj[r][j][ei] = b1_proj_mass[r][j][0].Rotate(eigen_sys.second.get());
+              b0_proj[j][ei] = b0_proj_mass[j][0].Rotate(eigen_sys.second.get());
+            }
+
+            // Store the rotation operator to use later
+            H0_rotations[ei][r] = std::move(eigen_sys.second);
+          }
+        }
+      } else {
+        try{
+          iniProjectors();
+        } catch (std::exception& ex) {
+          std::cerr << ex.what() << std::endl;
+          throw std::runtime_error("nuSQUIDS::init : Failed while trying initialize projectors [iniProjectors]");
+        }
+        try{
+          H0_array.resize(std::vector<size_t>{ne});
+          for(unsigned int ie = 0; ie < ne; ie++){
+            H0_array[ie] = squids::SU_vector(nsun);
+          }
+          iniH0();
+        } catch (std::exception& ex) {
+          std::cerr << ex.what() << std::endl;
+          throw std::runtime_error("nuSQUIDS::init : Failed while trying initialize vaccum Hamiltonian [iniH0]");
+        }
+      }
     }
 };
 
@@ -2019,6 +2089,8 @@ class nuSQUIDSAtm {
               for(unsigned int irho = 0; irho < GetNumRho(); ++irho) {
                 squids::SU_vector h0 = nsq.GetHamiltonian(ie, irho);
                 std::pair<std::unique_ptr<gsl_vector, void (*)(gsl_vector*)>, std::unique_ptr<gsl_matrix_complex, void (*)(gsl_matrix_complex*)> > eigen_sys = h0.GetEigenSystem(false); // false ==> do not sort
+                eigen_sys.first; // eigen values
+                eigen_sys.second; // unitary matrix
                 lambda_size = eigen_sys.first->size;
                 marray<double,1> lambda({lambda_size});
                 for(unsigned int ilam = 0; ilam < lambda_size; ++ilam) {

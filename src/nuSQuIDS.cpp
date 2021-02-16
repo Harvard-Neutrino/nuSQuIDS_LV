@@ -320,11 +320,41 @@ void nuSQUIDS::EvolveProjectors(double x){
         evol_b1_proj[rho][flv][ei] = squids::detail::guarantee
           <squids::detail::NoAlias | squids::detail::EqualSizes>
           (b1_proj[rho][flv].Evolve(evol_buf.get()));
+        if(useBSMBasis)
+          evol_b0_proj[rho][flv][ei] = squids::detail::guarantee
+            <squids::detail::NoAlias | squids::detail::EqualSizes>
+            (b0_proj[rho][flv][ei].Evolve(evol_buf.get()));
       }
     }
     AddToEvolveProjectors(x,ei,evol_buf.get());
   }
   AddToEvolveProjectors(x);
+  return;
+}
+
+void nuSQUIDS::EvolveRotations(double x){
+  std::unique_ptr<double[]> evol_buf(new double[H0_array[0].GetEvolveBufferSize()]);
+  for(unsigned int ei = 0; ei < ne; ei++){
+    H0_array[ei].PrepareEvolve(evol_buf.get(),x-Get_t_initial());
+    if (evol_lowpass_cutoff.extent(0) > ei and evol_lowpass_scale.extent(0) > ei and evol_lowpass_cutoff[ei] > 0){
+      // std::cout << "evol_buf: ";
+      // for (unsigned int i = 0; i < H0_array[ei].GetEvolveBufferSize(); i++){
+      //   std::cout << evol_buf.get()[i] << "  ";
+      // }
+      // std::cout << std::endl;
+      H0_array[ei].LowPassFilter(evol_buf.get(), evol_lowpass_cutoff[ei], evol_lowpass_scale[ei]);
+      // std::cout << "evol_buf after filter: ";
+      // for (unsigned int i = 0; i < H0_array[ei].GetEvolveBufferSize(); i++){
+      //   std::cout << evol_buf.get()[i] << "  ";
+      // }
+      // std::cout << std::endl;
+    }
+    evol_H0_rotations[ei] = squids::detail::guarantee
+      <squids::detail::NoAlias | squids::detail::EqualSizes>
+      (H0_rotations[ei].Evolve(evol_buf.get()));
+    AddToEvolveRotations(x,ei,evol_buf.get());
+  }
+  AddToEvolveRotations(x);
   return;
 }
 
@@ -1302,11 +1332,17 @@ void nuSQUIDS::Set_initial_state(const marray<double,1>& v, Basis basis){
       state[i].rho[r].SetAllComponents(0);
       if (basis == flavor){
         for(unsigned int j = 0; j < v.extent(0); j++)
-          state[i].rho[r] += v[j]*b1_proj[r][j];
+          if(useBSMBasis)
+            state[i].rho[r] += v[j]*b1_proj[r][j][i];
+          else
+            state[i].rho[r] += v[j]*b1_proj[r][j][0];
       }
       else if (basis == mass){
         for(int j = 0; j < v.extent(0); j++)
-          state[i].rho[r] += v[j]*b0_proj[j];
+          if(useBSMBasis)
+            state[i].rho[r] += v[j]*b0_proj[j][i];
+          else
+            state[i].rho[r] += v[j]*b0_proj[j][0];
       }
     }
   }
@@ -1347,11 +1383,17 @@ void nuSQUIDS::Set_initial_state(const marray<double,2>& v, Basis basis){
       state[i].rho[r].SetAllComponents(0);
       if (basis == flavor){
         for(unsigned int j = 0; j < numneu; j++)
-          state[i].rho[r] += v[i][j]*b1_proj[r][j];
+          if(useBSMBasis)
+            state[i].rho[r] += v[i][j]*b1_proj[r][j][i];
+          else
+            state[i].rho[r] += v[i][j]*b1_proj[r][j][i];
       }
       else if (basis == mass){
         for(unsigned int j = 0; j < numneu; j++)
-          state[i].rho[r] += v[i][j]*b0_proj[j];
+          if(useBSMBasis)
+            state[i].rho[r] += v[i][j]*b0_proj[j][i];
+          else
+            state[i].rho[r] += v[i][j]*b0_proj[j][0];
       }
     }
   }
@@ -1397,11 +1439,17 @@ void nuSQUIDS::Set_initial_state(const marray<double,3>& v, Basis basis){
       state[i].rho[r].SetAllComponents(0);
       if (basis == flavor){
         for(unsigned int j = 0; j < numneu; j++)
-          state[i].rho[r] += v[i][r][j]*b1_proj[r][j];
+          if(useBSMBasis)
+            state[i].rho[r] += v[i][r][j]*b1_proj[r][j][i];
+          else
+            state[i].rho[r] += v[i][r][j]*b1_proj[r][j][0];
       }
       else if (basis == mass){
         for(unsigned int j = 0; j < numneu; j++)
-          state[i].rho[r] += v[i][r][j]*b0_proj[j];
+          if(useBSMBasis)
+            state[i].rho[r] += v[i][r][j]*b0_proj[j][i];
+          else
+            state[i].rho[r] += v[i][r][j]*b0_proj[j][0];
       }
     }
   }
@@ -1422,11 +1470,54 @@ double nuSQUIDS::EvalMass(unsigned int flv,double EE, unsigned int rho) const{
   if ( rho != 0 and NT != both )
     throw std::runtime_error("nuSQUIDS::Error::Cannot evaluate rho != 0 in this NT mode.");
   if ( basis == mass )
-    return b0_proj[flv]*GetIntermediateState(rho,EE);
+    return b0_proj[flv][0]*GetIntermediateState(rho,EE);
   if ( EE < *E_range.begin() || EE > *E_range.rbegin() )
     throw std::runtime_error("nuSQUIDS::Error::Energy "+std::to_string(EE)+" outside of propagated energy range, ["
                              +std::to_string(*E_range.begin())+","+std::to_string(*E_range.rbegin())+"].");
-  return GetExpectationValueD(b0_proj[flv], rho, EE);
+  if(useBSMBasis) {
+    double the_time = t-t_ini;
+    if(the_time != rotation_evol_time) {
+      rotation_evol_time = the_time;
+      EvolveRotations(rotation_evol_time);
+    }
+#ifdef SQUIDS_THREAD_LOCAL
+    static SQUIDS_THREAD_LOCAL expectationValueDBuffer buf(nsun);
+#else //slow way, without thread local storage
+    expectationValueDBuffer buf(nsun);
+#endif
+    //find bracketing state entries
+    auto xit=std::lower_bound(x.begin(),x.end(),EE);
+    if(xit==x.end())
+      throw std::runtime_error("SQUIDS::GetExpectationValueD : x value not in the array.");
+    if(xit!=x.begin())
+      xit--;
+    size_t xid=std::distance(x.begin(),xit);
+
+    //linearly interpolate between the two states
+    double f2=((xi-x[xid])/(x[xid+1]-x[xid]));
+    double f1=1-f2;
+
+    SU_vector I = squids::Identity(nsun);
+
+    // Evolve the mass basis rotation for the first state
+    //buf.op = H0_rotations[xid].Evolve(H0_array[xid],t-t_ini);
+
+    // Rotate the first state into the mass basis and apply weight
+    //buf.state = f1*state[xid].rho[rho].Rotate(buf.op);
+
+    // Evolve the mass basis projector for the second state
+    //buf.op = H0_rotations.Evolve(H0_array[xid+1],t-t_ini)
+
+    // Rotate the second state into the mass basis and combine
+    //buf.state += f2*state[xid+1].rho[rho].Rotate(buf.op)
+
+    buf.op = squids::SU_vector::Projector(nsun,flv);
+    buf.op = buf.Evolve(H0(xid,rho),t-t_ini)
+    
+    
+  } else {
+    return GetExpectationValueD(b0_proj[flv], rho, EE); // FIXME
+  }
 }
 
 double nuSQUIDS::EvalFlavor(unsigned int flv,double EE,unsigned int rho) const{

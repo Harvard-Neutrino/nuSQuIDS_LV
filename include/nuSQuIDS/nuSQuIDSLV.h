@@ -90,7 +90,6 @@ class nuSQUIDSLV: public nuSQUIDS {
     }
 
   public:
-    /*
     squids::SU_vector H0(double Enu, unsigned int irho) const{
       squids::SU_vector potential = nuSQUIDS::H0(Enu, irho);
       double sign = 1;
@@ -105,8 +104,8 @@ class nuSQUIDSLV: public nuSQUIDS {
       }
       return potential;
     }
-    */
 
+    /*
     squids:: SU_vector HI(unsigned int ie,unsigned int irho) const {
       squids::SU_vector potential = nuSQUIDS::HI(ie, irho);
       double sign = 1;
@@ -119,6 +118,7 @@ class nuSQUIDSLV: public nuSQUIDS {
       // ================= HERE WE ADD THE NEW PHYSICS ===================
       return potential;
     }
+    */
   public:
     nuSQUIDSLV() : nuSQUIDS() {}
 
@@ -156,7 +156,21 @@ class nuSQUIDSLV: public nuSQUIDS {
        for(unsigned int ei = 0; ei < ne; ei++){
          LVP_evol[ei] = squids::SU_vector(nsun);
        }
-       init(E_range_);
+       init(E_range_,0,true);
+    }
+
+    void init(marray<double,1> E_vector,double xini=0.0,bool constructor_call=false) {
+        if(not constructor_call) {
+            nuSQUIDS::init(E_vector,xini);
+        }
+        SetUseBSMBasis(true);
+    }
+
+    void init(double xini=0.0,bool constructor_call=false) {
+        if(not constructor_call) {
+            nuSQUIDS::init(xini);
+        }
+        SetUseBSMBasis(true);
     }
 
     virtual ~nuSQUIDSLV() {};
