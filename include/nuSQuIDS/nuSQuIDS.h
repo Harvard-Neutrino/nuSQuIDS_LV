@@ -836,11 +836,11 @@ protected:
 
     /// \brief Sets the linear ramp size for the state evolution low-pass filter.
     /// @param val Range in frequency space over which the linear ramp is applied. 
-    void Set_EvolLowPassScale(double val);
+    //void Set_EvolLowPassScale(double val);
 
     /// \brief Sets the linear ramp size for the state evolution low-pass filter.
     /// @param val Range in frequency space over which the linear ramp is applied. 
-    void Set_EvolLowPassScale(const marray<double,1>& val);
+    //void Set_EvolLowPassScale(const marray<double,1>& val);
 
     /// \brief Toggles tau regeneration on and off.
     /// \param opt If \c true tau regeneration will be considered.
@@ -1419,7 +1419,7 @@ class nuSQUIDSAtm {
         double scale = LinInter(costh,costh_array[cth_M],costh_array[cth_M+1],scale_M,scale_P);
         double cutoff = LinInter(costh,costh_array[cth_M],costh_array[cth_M+1],cutoff_M,cutoff_P);
 
-        H0_at_enu.LowPassFilter(evol_buffer.get(), cutoff, scale);
+        //H0_at_enu.LowPassFilter(evol_buffer.get(), cutoff, scale);
         storage.evol_proj = nusq_array[0].GetFlavorProj(flv,rho).Evolve(evol_buffer.get());
       }
       else {
@@ -1943,13 +1943,13 @@ class nuSQUIDSAtm {
       }
     }
 
-    void Set_EvolLowPassScale(double val){
+    /*void Set_EvolLowPassScale(double val){
       for(BaseSQUIDS& nsq : nusq_array){
         nsq.Set_EvolLowPassScale(val);
       }
-    }
+    }*/
 
-    void Set_AutoEvolLowPass(double delta_phi_max, double delta_phi_scale, bool fast=false){
+    /*void Set_AutoEvolLowPass(double delta_phi_max, double delta_phi_scale, bool fast=false){
       for(BaseSQUIDS& nsq : nusq_array){
         nsq.lowpass = true;
       }
@@ -2111,7 +2111,7 @@ class nuSQUIDSAtm {
         nsq.Set_EvolLowPassScale(delta_phi_scale * nsq_bounds);
         //nsq.Set_h(1.0/min_bound);
       }
-    }
+    }*/
 };
 
 
